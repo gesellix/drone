@@ -8,30 +8,21 @@ ENV GOARCH arm
 #ENV GOARM 6
 #ENV CGO_ENABLED 1
 
-RUN echo "deb http://httpredir.debian.org/debian unstable main non-free contrib" >> /etc/apt/sources.list &&\
-    apt-get update && apt-get install -y cross-gcc-dev gcc-arm-linux-gnueabi bzip2
-
 ADD contrib/*.sh /usr/local/bin/
-RUN chmod +x /usr/local/bin/setup-sassc.sh && \
-    sync && \
-    /usr/local/bin/setup-sassc.sh
-RUN chmod +x /usr/local/bin/setup-sqlite-arm.sh && \
-    sync && \
-    /usr/local/bin/setup-sqlite-arm.sh
+RUN chmod +x /usr/local/bin/setup-sassc.sh && sync && /usr/local/bin/setup-sassc.sh && \
+    chmod +x /usr/local/bin/setup-sqlite-arm.sh && sync && /usr/local/bin/setup-sqlite-arm.sh
 
 COPY . /go/src/github.com/drone/drone
 WORKDIR /go/src/github.com/drone/drone
 
-RUN make deps
-RUN cd /go/src/github.com/elazarl/go-bindata-assetfs && GOARCH= go install ./...
-RUN cd /go/src/github.com/jteeuwen/go-bindata && GOARCH= go install ./...
-RUN cd /go/src/github.com/eknkc/amber && GOARCH= go install ./...
+RUN make deps && \
+    cd /go/src/github.com/elazarl/go-bindata-assetfs && GOARCH= go install ./... && \
+    cd /go/src/github.com/jteeuwen/go-bindata && GOARCH= go install ./... && \
+    cd /go/src/github.com/eknkc/amber && GOARCH= go install ./... && \
+    make gen
 
-RUN make gen
-
-# try to build without Cgo
-RUN rm -f /go/src/github.com/drone/drone/vendor/github.com/mattn/go-sqlite3/sqlite3.c
-
-RUN make build build_static
+# build without Cgo
+RUN rm -f /go/src/github.com/drone/drone/vendor/github.com/mattn/go-sqlite3/sqlite3.c && \
+    make build build_static
 
 CMD ls -lisah /go/
