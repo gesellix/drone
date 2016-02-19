@@ -21,10 +21,11 @@ deps:
 gen: gen_static gen_template gen_migrations
 
 gen_static:
-	mkdir -p static/docs_gen/api static/docs_gen/build
-	mkdir -p static/docs_gen/api static/docs_gen/plugin
-	mkdir -p static/docs_gen/api static/docs_gen/setup
-	mkdir -p static/docs_gen/api static/docs_gen/cli
+	mkdir -p static/docs_gen/api
+	mkdir -p static/docs_gen/build
+	mkdir -p static/docs_gen/cli
+	mkdir -p static/docs_gen/plugin
+	mkdir -p static/docs_gen/setup
 	go generate github.com/drone/drone/static
 
 gen_template:
@@ -38,6 +39,7 @@ build:
 
 build_static:
 	go build --ldflags '-extldflags "-static" -X main.build=$(CI_BUILD_NUMBER)' -o drone_static
+#	go build --ldflags '-extldflags "-static -lsqlite3 libsqlite3" -X main.build=$(CI_BUILD_NUMBER)' -o drone_static
 
 test:
 	go test -cover $(PACKAGES)

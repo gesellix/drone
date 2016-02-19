@@ -1,0 +1,66 @@
+#     docker build --rm=true -t drone/arm -f Dockerfile.arm .
+
+#FROM golang:1.4
+#FROM golang:1.4-cross
+FROM golang:1.5
+
+ENV GO15VENDOREXPERIMENT 1
+ENV GOOS linux
+ENV GOARCH arm
+#ENV GOARM 6
+#ENV CGO_ENABLED 1
+
+RUN echo "deb http://httpredir.debian.org/debian unstable main non-free contrib" >> /etc/apt/sources.list && \
+    apt-get update && apt-get install -y cross-gcc-dev gcc-arm-linux-gnueabi bzip2 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
+
+ADD contrib/*.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/setup-sassc.sh && \
+    sync && \
+    /usr/local/bin/setup-sassc.sh
+RUN chmod +x /usr/local/bin/setup-sqlite-arm.sh && \
+    sync && \
+    /usr/local/bin/setup-sqlite-arm.sh
+
+# http://dave.cheney.net/2015/09/04/building-go-1-5-on-the-raspberry-pi
+#RUN cd $HOME && \
+#    curl http://dave.cheney.net/paste/go-linux-arm-bootstrap-c788a8e.tbz -o go-arm.tbz && \
+#    tar xjf go-arm.tbz
+
+#RUN cd $HOME && \
+#    curl https://storage.googleapis.com/golang/go1.4.3.linux-amd64.tar.gz -o go-1.4.tgz && \
+#    tar xzf go-1.4.tgz && \
+#    mv go go1.4
+
+#ENV CC_FOR_TARGET arm-linux-gnueabi-gcc
+
+#RUN cd /usr/local/go/src && ./make.bash
+#RUN cd /usr/src/go/src && ./make.bash
+
+COPY . /go/src/github.com/drone/drone
+WORKDIR /go/src/github.com/drone/drone
+
+#  --tags "libsqlite3 linux"
+
+#RUN go get ./... || true
+RUN make deps
+RUN cd /go/src/github.com/elazarl/go-bindata-assetfs && GOARCH= go install ./...
+RUN cd /go/src/github.com/jteeuwen/go-bindata && GOARCH= go install ./...
+RUN cd /go/src/github.com/eknkc/amber && GOARCH= go install ./...
+
+#ENV PATH $PATH:$GOPATH/bin/linux_arm
+RUN make gen
+
+#RUN make test
+# docker run --publish=3306:3306 -e MYSQL_DATABASE=test -e MYSQL_ALLOW_EMPTY_PASSWORD=yes mysql:5.6.27
+#RUN make test_mysql
+# docker run --publish=5432:5432 postgres:9.4.5
+#RUN make test_postgres
+
+# try to build without Cgo
+RUN rm -f /go/src/github.com/drone/drone/vendor/github.com/mattn/go-sqlite3/sqlite3.c
+
+#RUN make build build_static deb docs
+RUN make build build_static
+
+CMD ls -lisah /go/
