@@ -8,6 +8,7 @@ import (
 	"github.com/drone/drone/shared/envconfig"
 	"github.com/drone/drone/store"
 	"github.com/drone/drone/store/migration"
+	_ "github.com/cznic/ql"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
@@ -146,5 +147,12 @@ func setupMeddler(driver string) {
 		meddler.Default = meddler.MySQL
 	case "postgres":
 		meddler.Default = meddler.PostgreSQL
+	case "ql":
+		meddler.Default = &meddler.Database{
+			Quote:               `"`,
+			Placeholder:         "?",
+			UseReturningToGetID: false,
+		}
+
 	}
 }
