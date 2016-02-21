@@ -8,7 +8,7 @@ import (
 	"github.com/drone/drone/shared/envconfig"
 	"github.com/drone/drone/store"
 	"github.com/drone/drone/store/migration"
-	_ "github.com/cznic/ql"
+	_ "github.com/cznic/ql/driver"
 	_ "github.com/go-sql-driver/mysql"
 	_ "github.com/lib/pq"
 	_ "github.com/mattn/go-sqlite3"
@@ -118,7 +118,7 @@ func pingDatabase(db *sql.DB) (err error) {
 	return
 }
 
-// helper function to setup the databsae by performing
+// helper function to setup the database by performing
 // automated database migration steps.
 func setupDatabase(driver string, db *sql.DB) error {
 	var migrations = &migrate.AssetMigrationSource{
@@ -150,7 +150,13 @@ func setupMeddler(driver string) {
 	case "ql":
 		meddler.Default = &meddler.Database{
 			Quote:               `"`,
-			Placeholder:         "?",
+			Placeholder:         "$1",
+			UseReturningToGetID: false,
+		}
+	case "ql-mem":
+		meddler.Default = &meddler.Database{
+			Quote:               `"`,
+			Placeholder:         "$1",
 			UseReturningToGetID: false,
 		}
 

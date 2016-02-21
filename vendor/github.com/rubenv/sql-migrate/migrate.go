@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path"
 	"regexp"
@@ -14,8 +15,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/go-gorp/gorp"
 	"github.com/rubenv/sql-migrate/sqlparse"
-	"gopkg.in/gorp.v1"
 )
 
 type MigrationDirection int
@@ -97,9 +98,15 @@ type PlannedMigration struct {
 
 type byId []*Migration
 
-func (b byId) Len() int           { return len(b) }
-func (b byId) Swap(i, j int)      { b[i], b[j] = b[j], b[i] }
-func (b byId) Less(i, j int) bool { return b[i].Less(b[j]) }
+func (b byId) Len() int {
+	return len(b)
+}
+func (b byId) Swap(i, j int) {
+	b[i], b[j] = b[j], b[i]
+}
+func (b byId) Less(i, j int) bool {
+	return b[i].Less(b[j])
+}
 
 type MigrationRecord struct {
 	Id        string    `db:"id"`
@@ -107,6 +114,8 @@ type MigrationRecord struct {
 }
 
 var MigrationDialects = map[string]gorp.Dialect{
+	"ql":  gorp.QlDialect{},
+	"ql-mem":  gorp.QlDialect{},
 	"sqlite3":  gorp.SqliteDialect{},
 	"postgres": gorp.PostgresDialect{},
 	"mysql":    gorp.MySQLDialect{"InnoDB", "UTF8"},
@@ -180,13 +189,13 @@ func (f FileMigrationSource) FindMigrations() ([]*Migration, error) {
 // Migrations from a bindata asset set.
 type AssetMigrationSource struct {
 	// Asset should return content of file in path if exists
-	Asset func(path string) ([]byte, error)
+	Asset    func(path string) ([]byte, error)
 
 	// AssetDir should return list of files in the path
 	AssetDir func(path string) ([]string, error)
 
 	// Path in the bindata to use.
-	Dir string
+	Dir      string
 }
 
 var _ MigrationSource = (*AssetMigrationSource)(nil)
@@ -309,21 +318,28 @@ func ExecMax(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirecti
 
 // Plan a migration.
 func PlanMigration(db *sql.DB, dialect string, m MigrationSource, dir MigrationDirection, max int) ([]*PlannedMigration, *gorp.DbMap, error) {
+	log.Printf("dialect %q", dialect)
+
 	dbMap, err := getMigrationDbMap(db, dialect)
 	if err != nil {
+		log.Printf("err dbMap %v", err)
 		return nil, nil, err
 	}
 
 	migrations, err := m.FindMigrations()
 	if err != nil {
+		log.Printf("err migrations %v", migrations)
 		return nil, nil, err
 	}
 
 	var migrationRecords []MigrationRecord
+	log.Printf("1")
 	_, err = dbMap.Select(&migrationRecords, fmt.Sprintf("SELECT * FROM %s", getTableName()))
 	if err != nil {
+		log.Printf("2 %v", err)
 		return nil, nil, err
 	}
+	log.Printf("3")
 
 	// Sort migrations that have been run by Id.
 	var existingMigrations []*Migration
@@ -337,7 +353,7 @@ func PlanMigration(db *sql.DB, dialect string, m MigrationSource, dir MigrationD
 	// Get last migration that was run
 	record := &Migration{}
 	if len(existingMigrations) > 0 {
-		record = existingMigrations[len(existingMigrations)-1]
+		record = existingMigrations[len(existingMigrations) - 1]
 	}
 
 	result := make([]*PlannedMigration, 0)
@@ -376,7 +392,7 @@ func PlanMigration(db *sql.DB, dialect string, m MigrationSource, dir MigrationD
 func ToApply(migrations []*Migration, current string, direction MigrationDirection) []*Migration {
 	var index = -1
 	if current != "" {
-		for index < len(migrations)-1 {
+		for index < len(migrations) - 1 {
 			index++
 			if migrations[index].Id == current {
 				break
@@ -385,16 +401,16 @@ func ToApply(migrations []*Migration, current string, direction MigrationDirecti
 	}
 
 	if direction == Up {
-		return migrations[index+1:]
+		return migrations[index + 1:]
 	} else if direction == Down {
 		if index == -1 {
 			return []*Migration{}
 		}
 
 		// Add in reverse order
-		toApply := make([]*Migration, index+1)
-		for i := 0; i < index+1; i++ {
-			toApply[index-i] = migrations[i]
+		toApply := make([]*Migration, index + 1)
+		for i := 0; i < index + 1; i++ {
+			toApply[index - i] = migrations[i]
 		}
 		return toApply
 	}
@@ -461,13 +477,28 @@ Check https://github.com/go-sql-driver/mysql#parsetime for more info.`)
 
 	// Create migration database map
 	dbMap := &gorp.DbMap{Db: db, Dialect: d}
-	dbMap.AddTableWithNameAndSchema(MigrationRecord{}, schemaName, tableName).SetKeys(false, "Id")
+	dbMap.AddTableWithNameAndSchema(MigrationRecord{}, schemaName, tableName)
+	//dbMap.AddTableWithNameAndSchema(MigrationRecord{}, schemaName, tableName).SetKeys(false, "Id")
 	//dbMap.TraceOn("", log.New(os.Stdout, "migrate: ", log.Lmicroseconds))
 
-	err := dbMap.CreateTablesIfNotExists()
+	dbMap.TraceOn("[gorp]", log.New(os.Stdout, "drone:", log.Lmicroseconds))
+
+	t := &gorp.Transaction{}
+	t, err := dbMap.Begin()
 	if err != nil {
+		log.Printf("err begin transaction %v", err)
 		return nil, err
 	}
+	err = t.CreateTablesIfNotExists()
+	if err != nil {
+		log.Printf("err CreateTablesIfNotExists %v", err)
+		t.Rollback()
+		return nil, err
+	}
+	t.Commit()
+
+	// Turn off tracing
+	dbMap.TraceOff()
 
 	return dbMap, nil
 }

@@ -6,7 +6,7 @@ import (
 
 	_ "github.com/mattn/go-sqlite3"
 	. "gopkg.in/check.v1"
-	"gopkg.in/gorp.v1"
+	"github.com/go-gorp/gorp"
 )
 
 var filename = "/tmp/sql-migrate-sqlite.db"

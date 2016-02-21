@@ -1,0 +1,31 @@
+# build environment used in .drone.yml
+#
+#     docker build --rm=true -t drone/golang:1.5 -f Dockerfile.env .
+
+FROM sassc
+
+COPY ./Makefile /go/src/github.com/drone/drone/Makefile
+RUN cd /go/src/github.com/drone/drone && \
+    make deps
+
+COPY ./contrib /go/src/github.com/drone/drone/contrib
+COPY ./docs /go/src/github.com/drone/drone/docs
+COPY ./static /go/src/github.com/drone/drone/static
+COPY ./template /go/src/github.com/drone/drone/template
+COPY ./store/migration /go/src/github.com/drone/drone/store/migration
+RUN cd /go/src/github.com/drone/drone && \
+    make gen
+
+COPY . /go/src/github.com/drone/drone
+RUN cd /go/src/github.com/drone/drone && \
+    make build build_static && \
+    cp drone_static /usr/local/bin/drone
+
+CMD ["drone"]
+#CMD ["drone", "--help"]
+
+ENV DATABASE_DRIVER ql
+ENV DATABASE_CONFIG /drone.ql
+
+#ENV DATABASE_DRIVER ql-mem
+#ENV DATABASE_CONFIG /drone.ql-mem
